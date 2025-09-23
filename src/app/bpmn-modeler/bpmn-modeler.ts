@@ -1,8 +1,9 @@
-import { Component, ViewChild, ElementRef } from '@angular/core';
+import { Component, ViewChild, ElementRef, OnInit, OnDestroy, OnChanges } from '@angular/core';
 import Modeler from 'bpmn-js/lib/Modeler';
 import BpmnColorPickerModule from 'bpmn-js-color-picker';
 import minimapModule from 'diagram-js-minimap';
 import { from, Observable } from 'rxjs';
+import { WebProviderService } from '../../lib/services/providers/web-provider';
 
 @Component({
   selector: 'app-bpmn-modeler',
@@ -10,14 +11,12 @@ import { from, Observable } from 'rxjs';
   templateUrl: './bpmn-modeler.html',
   styleUrl: './bpmn-modeler.scss'
 })
-export class BpmnModeler {
+export class BpmnModeler implements OnInit, OnDestroy, OnChanges {
   private bpmnJS: Modeler;
 
   @ViewChild('bpmnModelerRef', { static: true }) private bpmnModelerRef: ElementRef | undefined;
 
-  private url = '/public/bpmn-models/test.bpmn';
-
-  constructor() {
+  constructor(private webProviderService: WebProviderService) {
     this.bpmnJS = new Modeler({
       container: this.bpmnModelerRef?.nativeElement,
       additionalModules: [
@@ -27,11 +26,15 @@ export class BpmnModeler {
     })
   }
 
-  async ngAfterContentInit(): Promise<void> {
-    const xml = await this.loadXml(this.url);
-    this.bpmnJS.attachTo(this.bpmnModelerRef!.nativeElement);
-    this.importDiagram(xml);
+  async ngOnInit(): Promise<void> {
+    await this.ngOnChanges();
+  }
 
+  async ngOnChanges(): Promise<void> {
+    const xml = await this.webProviderService.read('bpmn-models', 'test.bpmn');    
+    if (xml !== undefined)
+      this.bpmnJS.attachTo(this.bpmnModelerRef!.nativeElement);
+      this.importDiagram(xml);
   }
 
   ngOnDestroy(): void {
@@ -40,14 +43,6 @@ export class BpmnModeler {
 
   private importDiagram(xml: string): Observable<{ warnings: Array<any> }> {
     return from(this.bpmnJS.importXML(xml) as Promise<{ warnings: Array<any> }>);
-  }
-
-  private async loadXml(url: string): Promise<string> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to load XML from ${url}: ${response.statusText}`);
-    }
-    return response.text();
   }
 
 }
